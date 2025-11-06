@@ -14,9 +14,37 @@ class WebRTCService {
 
   static final Map<String, dynamic> _configuration = {
     'iceServers': [
+      // Free STUN servers (for NAT discovery)
       {'urls': 'stun:stun.l.google.com:19302'},
       {'urls': 'stun:stun1.l.google.com:19302'},
+      {'urls': 'stun:stun2.l.google.com:19302'},
+      {'urls': 'stun:stun3.l.google.com:19302'},
+      {'urls': 'stun:stun4.l.google.com:19302'},
+      
+      // Free TURN servers (for NAT traversal - helps with connectivity)
+      // Open Relay Project - Free TURN server
+      {
+        'urls': [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp',
+        ],
+        'username': 'openrelayproject',
+        'credential': 'openrelayproject',
+      },
+      // Metered.ca free TURN server
+      {
+        'urls': [
+          'turn:relay.metered.ca:80',
+          'turn:relay.metered.ca:443',
+          'turn:relay.metered.ca:443?transport=tcp',
+        ],
+        'username': 'free',
+        'credential': 'free',
+      },
     ],
+    'iceTransportPolicy': 'all', // Use both relay and non-relay candidates
+    'iceCandidatePoolSize': 10,
   };
 
   Future<void> initializeLocalRenderer(webrtc.RTCVideoRenderer renderer) async {
