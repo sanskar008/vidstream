@@ -43,6 +43,9 @@ class _JoinStreamScreenState extends State<JoinStreamScreen> {
     if (!mounted) return;
 
     if (success && streamProvider.currentStream != null) {
+      // Join the stream
+      await streamProvider.joinStream(streamProvider.currentStream!.id);
+      
       Navigator.push(
         context,
         MaterialPageRoute(

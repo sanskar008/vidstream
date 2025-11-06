@@ -1,14 +1,14 @@
 import 'dart:async';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
 
 class WebRTCService {
-  RTCPeerConnection? _peerConnection;
-  MediaStream? _localStream;
-  MediaStream? _remoteStream;
-  RTCVideoRenderer? _localRenderer;
-  RTCVideoRenderer? _remoteRenderer;
+  webrtc.RTCPeerConnection? _peerConnection;
+  webrtc.MediaStream? _localStream;
+  webrtc.MediaStream? _remoteStream;
+  webrtc.RTCVideoRenderer? _localRenderer;
+  webrtc.RTCVideoRenderer? _remoteRenderer;
 
-  final List<Function(MediaStream)> _onRemoteStreamCallbacks = [];
+  final List<Function(webrtc.MediaStream)> _onRemoteStreamCallbacks = [];
 
   static final Map<String, dynamic> _configuration = {
     'iceServers': [
@@ -17,22 +17,29 @@ class WebRTCService {
     ],
   };
 
-  Future<void> initializeLocalRenderer(RTCVideoRenderer renderer) async {
+  Future<void> initializeLocalRenderer(webrtc.RTCVideoRenderer renderer) async {
     _localRenderer = renderer;
     await renderer.initialize();
   }
 
-  Future<void> initializeRemoteRenderer(RTCVideoRenderer renderer) async {
+  Future<void> initializeRemoteRenderer(
+    webrtc.RTCVideoRenderer renderer,
+  ) async {
     _remoteRenderer = renderer;
     await renderer.initialize();
   }
 
-  Future<MediaStream> startLocalStream() async {
+  Future<webrtc.MediaStream> startLocalStream() async {
     try {
-      final stream = await navigator.mediaDevices.getUserMedia({
-        'video': {'facingMode': 'user'},
+      // Use Flutter WebRTC's native camera access
+      final Map<String, dynamic> constraints = {
         'audio': false,
-      });
+        'video': {'facingMode': 'user'},
+      };
+
+      final stream = await webrtc.navigator.mediaDevices.getUserMedia(
+        constraints,
+      );
 
       _localStream = stream;
 
@@ -42,12 +49,16 @@ class WebRTCService {
 
       return stream;
     } catch (e) {
-      // Fallback: try without facingMode specification
+      // Fallback: try with simpler constraints
       try {
-        final stream = await navigator.mediaDevices.getUserMedia({
-          'video': true,
+        final Map<String, dynamic> constraints = {
           'audio': false,
-        });
+          'video': true,
+        };
+
+        final stream = await webrtc.navigator.mediaDevices.getUserMedia(
+          constraints,
+        );
 
         _localStream = stream;
 
@@ -62,18 +73,18 @@ class WebRTCService {
     }
   }
 
-  Function(RTCIceCandidate)? onIceCandidateCallback;
+  Function(webrtc.RTCIceCandidate)? onIceCandidateCallback;
 
   Future<void> initializePeerConnection({bool isCreator = false}) async {
-    _peerConnection = await createPeerConnection(_configuration);
+    _peerConnection = await webrtc.createPeerConnection(_configuration);
 
-    _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
+    _peerConnection!.onIceCandidate = (webrtc.RTCIceCandidate candidate) {
       if (onIceCandidateCallback != null) {
         onIceCandidateCallback!(candidate);
       }
     };
 
-    _peerConnection!.onAddStream = (MediaStream stream) {
+    _peerConnection!.onAddStream = (webrtc.MediaStream stream) {
       _remoteStream = stream;
       if (_remoteRenderer != null) {
         _remoteRenderer!.srcObject = stream;
@@ -88,7 +99,7 @@ class WebRTCService {
     }
   }
 
-  Future<RTCSessionDescription> createOffer() async {
+  Future<webrtc.RTCSessionDescription> createOffer() async {
     if (_peerConnection == null) {
       await initializePeerConnection(isCreator: true);
     }
@@ -98,7 +109,7 @@ class WebRTCService {
     return offer;
   }
 
-  Future<RTCSessionDescription> createAnswer() async {
+  Future<webrtc.RTCSessionDescription> createAnswer() async {
     if (_peerConnection == null) {
       await initializePeerConnection(isCreator: false);
     }
@@ -108,19 +119,21 @@ class WebRTCService {
     return answer;
   }
 
-  Future<void> setRemoteDescription(RTCSessionDescription description) async {
+  Future<void> setRemoteDescription(
+    webrtc.RTCSessionDescription description,
+  ) async {
     await _peerConnection?.setRemoteDescription(description);
   }
 
-  Future<void> addIceCandidate(RTCIceCandidate candidate) async {
+  Future<void> addIceCandidate(webrtc.RTCIceCandidate candidate) async {
     await _peerConnection?.addCandidate(candidate);
   }
 
-  void addRemoteStreamListener(Function(MediaStream) callback) {
+  void addRemoteStreamListener(Function(webrtc.MediaStream) callback) {
     _onRemoteStreamCallbacks.add(callback);
   }
 
-  void removeRemoteStreamListener(Function(MediaStream) callback) {
+  void removeRemoteStreamListener(Function(webrtc.MediaStream) callback) {
     _onRemoteStreamCallbacks.remove(callback);
   }
 

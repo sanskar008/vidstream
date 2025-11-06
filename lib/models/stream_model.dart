@@ -6,6 +6,7 @@ class StreamModel {
   final CreatorModel creator;
   final bool isLive;
   final int viewers;
+  final int likes;
   final DateTime createdAt;
   final DateTime? endedAt;
 
@@ -17,6 +18,7 @@ class StreamModel {
     required this.creator,
     required this.isLive,
     this.viewers = 0,
+    this.likes = 0,
     required this.createdAt,
     this.endedAt,
   });
@@ -30,6 +32,7 @@ class StreamModel {
       creator: CreatorModel.fromJson(json['creator'] ?? {}),
       isLive: json['isLive'] ?? false,
       viewers: json['viewers'] ?? 0,
+      likes: json['likes'] ?? 0,
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
@@ -48,6 +51,7 @@ class StreamModel {
       'creator': creator.toJson(),
       'isLive': isLive,
       'viewers': viewers,
+      'likes': likes,
       'createdAt': createdAt.toIso8601String(),
       'endedAt': endedAt?.toIso8601String(),
     };

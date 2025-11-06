@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../services/webrtc_service.dart';
@@ -22,7 +22,7 @@ class StreamBroadcasterWidget extends StatefulWidget {
 class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
   final WebRTCService _webrtcService = WebRTCService();
   final SocketService _socketService = SocketService();
-  RTCVideoRenderer _localRenderer = RTCVideoRenderer();
+  webrtc.RTCVideoRenderer _localRenderer = webrtc.RTCVideoRenderer();
   bool _isInitialized = false;
   bool _isLoading = true;
   String? _error;
@@ -57,7 +57,7 @@ class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
       });
 
       _socketService.onAnswer((data) {
-        final answer = RTCSessionDescription(
+        final answer = webrtc.RTCSessionDescription(
           data['answer']['sdp'],
           data['answer']['type'],
         );
@@ -79,7 +79,7 @@ class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
       };
 
       _socketService.onIceCandidate((data) async {
-        final candidate = RTCIceCandidate(
+        final candidate = webrtc.RTCIceCandidate(
           data['candidate']['candidate'],
           data['candidate']['sdpMid'],
           data['candidate']['sdpMLineIndex'],
@@ -216,7 +216,7 @@ class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
     return Stack(
       children: [
         SizedBox.expand(
-          child: RTCVideoView(_localRenderer, mirror: true),
+          child: webrtc.RTCVideoView(_localRenderer, mirror: true),
         ),
         Positioned(
           bottom: 16,

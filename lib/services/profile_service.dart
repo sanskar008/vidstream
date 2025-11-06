@@ -11,11 +11,14 @@ class ProfileService {
     return await _authService.getToken();
   }
 
-  Future<Map<String, dynamic>> getUserProfile(String userId) async {
+  Future<Map<String, dynamic>> getUserProfile(String userId, {String? currentUserId}) async {
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.profilesUrl}/$userId'),
-      );
+      String url = '${ApiConfig.profilesUrl}/$userId';
+      if (currentUserId != null) {
+        url += '?currentUserId=$currentUserId';
+      }
+      
+      final response = await http.get(Uri.parse(url));
 
       final data = json.decode(response.body);
 
@@ -23,6 +26,7 @@ class ProfileService {
         return {
           'success': true,
           'user': UserModel.fromJson(data['user']),
+          'isFollowing': data['user']['isFollowing'] ?? false,
         };
       } else {
         return {'success': false, 'message': data['message'] ?? 'Failed to fetch profile'};

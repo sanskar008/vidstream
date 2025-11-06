@@ -4,6 +4,7 @@ import '../../providers/stream_provider.dart' as stream_provider;
 import '../stream/stream_list_screen.dart';
 import '../stream/join_stream_screen.dart';
 import '../profile/profile_screen.dart';
+import '../search/search_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
   const UserHomeScreen({super.key});
@@ -32,6 +33,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         children: const [
           StreamListScreen(),
           JoinStreamScreen(),
+          SearchScreen(),
           ProfileScreen(),
         ],
       ),
@@ -50,6 +52,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           NavigationDestination(
             icon: Icon(Icons.add_circle_outline),
             label: 'Join',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.search),
+            label: 'Search',
           ),
           NavigationDestination(
             icon: Icon(Icons.person),

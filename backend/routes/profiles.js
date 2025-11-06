@@ -21,6 +21,16 @@ router.get('/:userId', async (req, res) => {
       isLive: true,
     });
 
+    let isFollowing = false;
+    if (req.query.currentUserId) {
+      const currentUser = await User.findById(req.query.currentUserId);
+      if (currentUser) {
+        isFollowing = currentUser.following.some(
+          id => id.toString() === user._id.toString()
+        );
+      }
+    }
+
     res.json({
       user: {
         id: user._id,
@@ -38,6 +48,7 @@ router.get('/:userId', async (req, res) => {
         followersCount: user.followers.length,
         followingCount: user.following.length,
         liveStreams,
+        isFollowing,
         createdAt: user.createdAt,
       },
     });
@@ -125,6 +136,44 @@ router.get('/followers/list', auth, async (req, res) => {
         username: f.username,
         email: f.email,
         createdAt: f.createdAt,
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get('/search/:query', async (req, res) => {
+  try {
+    const query = req.params.query;
+    
+    if (!query || query.length < 2) {
+      return res.status(400).json({ message: 'Search query must be at least 2 characters' });
+    }
+
+    const users = await User.find({
+      userType: 'creator',
+      $or: [
+        { username: { $regex: query, $options: 'i' } },
+        { email: { $regex: query, $options: 'i' } },
+      ],
+    })
+      .select('-password')
+      .limit(20);
+
+    const liveStreamsPromises = users.map(user =>
+      Stream.countDocuments({ creator: user._id, isLive: true })
+    );
+    const liveStreamsCounts = await Promise.all(liveStreamsPromises);
+
+    res.json({
+      creators: users.map((user, index) => ({
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        followersCount: user.followers.length,
+        liveStreams: liveStreamsCounts[index],
+        createdAt: user.createdAt,
       })),
     });
   } catch (error) {

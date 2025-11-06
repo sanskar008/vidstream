@@ -172,5 +172,97 @@ class StreamService {
       return {'success': false, 'message': 'Network error: ${e.toString()}'};
     }
   }
+
+  Future<Map<String, dynamic>> likeStream(String streamId) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.streamsUrl}/like/$streamId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'liked': data['liked'],
+          'likesCount': data['likesCount'],
+        };
+      } else {
+        return {'success': false, 'message': data['message'] ?? 'Failed to like stream'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: ${e.toString()}'};
+    }
+  }
+
+  Future<Map<String, dynamic>> getLikeStatus(String streamId) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.streamsUrl}/like-status/$streamId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'liked': data['liked'],
+          'likesCount': data['likesCount'],
+        };
+      } else {
+        return {'success': false, 'message': data['message'] ?? 'Failed to get like status'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: ${e.toString()}'};
+    }
+  }
+
+  Future<Map<String, dynamic>> resumeStream(String streamId) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        return {'success': false, 'message': 'Not authenticated'};
+      }
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.streamsUrl}/resume/$streamId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': data['message'],
+          'stream': StreamModel.fromJson(data['stream']),
+        };
+      } else {
+        return {'success': false, 'message': data['message'] ?? 'Failed to resume stream'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: ${e.toString()}'};
+    }
+  }
 }
 

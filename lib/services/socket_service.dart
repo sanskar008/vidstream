@@ -80,6 +80,16 @@ class SocketService {
     });
   }
 
+  void sendChatMessage(
+      String streamId, String message, String userId, String username) {
+    _socket?.emit('chat-message', {
+      'streamId': streamId,
+      'message': message,
+      'userId': userId,
+      'username': username,
+    });
+  }
+
   void onJoinedStream(Function(Map<String, dynamic>) callback) {
     _socket?.on('joined-stream', (data) {
       callback(Map<String, dynamic>.from(data));
@@ -119,6 +129,12 @@ class SocketService {
   void onWaitingForViewers(Function() callback) {
     _socket?.on('waiting-for-viewers', (_) {
       callback();
+    });
+  }
+
+  void onChatMessage(Function(Map<String, dynamic>) callback) {
+    _socket?.on('chat-message', (data) {
+      callback(Map<String, dynamic>.from(data));
     });
   }
 

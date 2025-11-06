@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/stream_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/stream_provider.dart' as stream_provider;
 import '../../widgets/stream_broadcaster_widget.dart';
 import '../../widgets/stream_viewer_widget.dart';
+import '../../widgets/stream_chat_widget.dart';
 
 class StreamViewScreen extends StatefulWidget {
   final StreamModel stream;
@@ -23,12 +26,27 @@ class _StreamViewScreenState extends State<StreamViewScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
+      final streamProvider = Provider.of<stream_provider.StreamProvider>(
+        context,
+        listen: false,
+      );
+
+      final isCreator =
+          currentUser != null &&
+          currentUser.userType == 'creator' &&
+          currentUser.id == widget.stream.creator.id;
+
       setState(() {
-        _isCreator =
-            currentUser != null &&
-            currentUser.userType == 'creator' &&
-            currentUser.id == widget.stream.creator.id;
+        _isCreator = isCreator;
       });
+
+      if (currentUser != null) {
+        streamProvider.getLikeStatus(widget.stream.id);
+        // Join stream if user is not the creator
+        if (!isCreator) {
+          streamProvider.joinStream(widget.stream.id);
+        }
+      }
     });
   }
 
@@ -50,7 +68,7 @@ class _StreamViewScreenState extends State<StreamViewScreen> {
         children: [
           Container(
             width: double.infinity,
-            height: MediaQuery.of(context).size.height * 0.4,
+            height: MediaQuery.of(context).size.height * 0.35,
             color: Colors.black,
             child: _isCreator
                 ? StreamBroadcasterWidget(streamId: widget.stream.id)
@@ -162,12 +180,65 @@ class _StreamViewScreenState extends State<StreamViewScreen> {
                         IconButton(
                           icon: const Icon(Icons.copy),
                           onPressed: () {
-                            // Copy to clipboard
+                            Clipboard.setData(
+                              ClipboardData(text: widget.stream.streamCode),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Stream code copied to clipboard',
+                                ),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
                           },
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 24),
+                  Consumer<stream_provider.StreamProvider>(
+                    builder: (context, streamProvider, child) {
+                      final isLiked = streamProvider.isLiked(widget.stream.id);
+                      final likesCount =
+                          streamProvider.getLikesCount(widget.stream.id) > 0
+                          ? streamProvider.getLikesCount(widget.stream.id)
+                          : widget.stream.likes;
+
+                      return Row(
+                        children: [
+                          IconButton(
+                            onPressed: () {
+                              streamProvider.toggleLike(widget.stream.id);
+                            },
+                            icon: Icon(
+                              isLiked ? Icons.favorite : Icons.favorite_border,
+                              color: isLiked ? Colors.red : Colors.white,
+                            ),
+                          ),
+                          Text(
+                            '$likesCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                          const Icon(
+                            Icons.visibility,
+                            color: Color(0xFF94A3B8),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${widget.stream.viewers}',
+                            style: const TextStyle(color: Color(0xFF94A3B8)),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  StreamChatWidget(streamId: widget.stream.id),
                 ],
               ),
             ),

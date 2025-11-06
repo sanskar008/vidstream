@@ -58,8 +58,13 @@ io.on('connection', (socket) => {
       const room = streamRooms.get(roomKey);
       if (userType === 'creator') {
         room.creator = socket.id;
+        room.creatorUserId = userId;
       } else {
         room.viewers.add(socket.id);
+        if (!room.viewerUserIds) {
+          room.viewerUserIds = new Map();
+        }
+        room.viewerUserIds.set(socket.id, userId);
       }
 
       socket.emit('joined-stream', { streamId, success: true });
@@ -71,6 +76,20 @@ io.on('connection', (socket) => {
       }
     } catch (error) {
       socket.emit('error', { message: 'Failed to join stream' });
+    }
+  });
+
+  socket.on('chat-message', ({ streamId, message, userId, username }) => {
+    const roomKey = `stream-${streamId}`;
+    const room = streamRooms.get(roomKey);
+    
+    if (room && (room.creator === socket.id || room.viewers.has(socket.id))) {
+      io.to(roomKey).emit('chat-message', {
+        message,
+        userId,
+        username,
+        timestamp: new Date().toISOString(),
+      });
     }
   });
 
