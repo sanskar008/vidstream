@@ -63,16 +63,48 @@ class _StreamViewerWidgetState extends State<StreamViewerWidget> {
         try {
           if (!mounted) return;
           
-          _creatorId = data['fromId'];
-          final offer = webrtc.RTCSessionDescription(
-            data['offer']['sdp'],
-            data['offer']['type'],
-          );
+          print('Received offer from creator: ${data['fromId']}');
           
+          // Validate offer data
+          if (data['offer'] == null || 
+              data['offer']['sdp'] == null || 
+              data['offer']['type'] == null) {
+            throw Exception('Invalid offer format');
+          }
+          
+          _creatorId = data['fromId'];
+          
+          // Validate SDP
+          final sdp = data['offer']['sdp'] as String;
+          final type = data['offer']['type'] as String;
+          
+          if (sdp.isEmpty) {
+            throw Exception('Offer SDP is empty');
+          }
+          
+          if (type.toLowerCase() != 'offer') {
+            throw Exception('Invalid offer type: $type');
+          }
+          
+          final offer = webrtc.RTCSessionDescription(sdp, type);
+          
+          print('Setting remote description with offer. SDP length: ${sdp.length}');
           await _webrtcService.setRemoteDescription(offer);
+          
+          print('Creating answer...');
           final answer = await _webrtcService.createAnswer();
           
+          // Validate answer before sending
+          if (answer.sdp == null || answer.sdp!.isEmpty) {
+            throw Exception('Created answer has invalid SDP');
+          }
+          
+          if (answer.type == null || answer.type!.toLowerCase() != 'answer') {
+            throw Exception('Created answer has invalid type: ${answer.type}');
+          }
+          
           if (_creatorId != null && mounted) {
+            print('Sending answer to creator: $_creatorId');
             _socketService.sendAnswer(
               widget.streamId,
               {
@@ -81,8 +113,10 @@ class _StreamViewerWidgetState extends State<StreamViewerWidget> {
               },
               _creatorId!,
             );
+            print('Answer sent successfully');
           }
         } catch (e) {
+          print('Error processing offer: $e');
           if (mounted) {
             setState(() {
               _error = 'Failed to process offer: $e';

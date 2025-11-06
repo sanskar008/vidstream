@@ -28,6 +28,7 @@ class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
   String? _error;
   bool _isFrontCamera = true;
   String? _currentViewerId;
+  bool _offerSent = false;
 
   @override
   void initState() {
@@ -51,25 +52,86 @@ class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
       _socketService.connect(ApiConfig.socketUrl);
       _socketService.joinStream(widget.streamId, user.id, 'creator');
       
-      _socketService.onViewerJoined((data) {
+      _socketService.onViewerJoined((data) async {
         if (mounted && _isInitialized) {
+          print('Viewer joined: ${data['viewerId']}');
+          
+          // If we're already waiting for an answer, wait a bit before creating new offer
+          if (_offerSent) {
+            print('Waiting for previous offer answer before creating new offer...');
+            // Wait for answer or timeout
+            await Future.delayed(const Duration(seconds: 5));
+            // If still waiting, we'll create a new offer (previous viewer might have disconnected)
+            if (_offerSent && mounted) {
+              print('Previous offer timed out, creating new offer for new viewer');
+              _offerSent = false;
+            }
+          }
+          
           _currentViewerId = data['viewerId'];
-          _createOfferForViewer();
+          
+          // Ensure local stream is started before creating offer
+          try {
+            await _createOfferForViewer();
+          } catch (e) {
+            print('Error creating offer for viewer: $e');
+            if (mounted) {
+              setState(() {
+                _error = 'Failed to connect to viewer: $e';
+              });
+            }
+          }
+        } else {
+          print('Cannot create offer: stream not initialized. Initialized: $_isInitialized, Mounted: $mounted');
         }
       });
 
       _socketService.onAnswer((data) async {
         try {
-          final answer = webrtc.RTCSessionDescription(
-            data['answer']['sdp'],
-            data['answer']['type'],
-          );
+          if (!mounted || !_isInitialized) {
+            print('Cannot process answer: stream not initialized');
+            return;
+          }
+          
+          // Only process answer if we've sent an offer
+          if (!_offerSent) {
+            print('Received answer but no offer was sent yet. Ignoring.');
+            return;
+          }
+          
+          print('Received answer from viewer: ${data['fromId']}');
+          
+          // Validate answer data
+          if (data['answer'] == null || 
+              data['answer']['sdp'] == null || 
+              data['answer']['type'] == null) {
+            throw Exception('Invalid answer format');
+          }
+          
+          final sdp = data['answer']['sdp'] as String;
+          final type = data['answer']['type'] as String;
+          
+          // Validate SDP and type
+          if (sdp.isEmpty) {
+            throw Exception('Answer SDP is empty');
+          }
+          
+          if (type.toLowerCase() != 'answer') {
+            throw Exception('Invalid answer type: $type');
+          }
+          
+          final answer = webrtc.RTCSessionDescription(sdp, type);
+          
+          print('Setting remote description with answer. Type: ${answer.type}, SDP length: ${sdp.length}');
           await _webrtcService.setRemoteDescription(answer);
+          print('Answer processed successfully');
+          _offerSent = false; // Reset for next viewer
         } catch (e) {
           print('Error setting remote description: $e');
+          _offerSent = false;
           if (mounted) {
             setState(() {
-              _error = 'Failed to process answer: $e';
+              _error = 'Failed to process answer: ${e.toString()}';
             });
           }
         }
@@ -123,7 +185,16 @@ class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
         return;
       }
       
+      if (_currentViewerId == null) {
+        print('Cannot create offer: no viewer ID');
+        return;
+      }
+      
+      print('Creating offer for viewer: $_currentViewerId');
+      _offerSent = false;
+      
       final offer = await _webrtcService.createOffer();
+      
       if (_currentViewerId != null && mounted) {
         _socketService.sendOffer(
           widget.streamId,
@@ -133,9 +204,20 @@ class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
           },
           _currentViewerId!,
         );
+        _offerSent = true;
+        print('Offer sent to viewer: $_currentViewerId');
+        
+        // Set timeout for answer
+        Future.delayed(const Duration(seconds: 10), () {
+          if (_offerSent && mounted) {
+            print('Offer timeout: no answer received from viewer $_currentViewerId');
+            _offerSent = false;
+          }
+        });
       }
     } catch (e) {
       print('Error creating offer: $e');
+      _offerSent = false;
       if (mounted) {
         setState(() {
           _error = 'Failed to create offer: $e';
@@ -162,16 +244,18 @@ class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
 
   Future<void> _startStream() async {
     try {
-      await _webrtcService.initializePeerConnection(isCreator: true);
+      // Start the local stream first (camera) - this works independently
       await _webrtcService.startLocalStream();
-      // Add the local stream to peer connection after it's started
-      await _webrtcService.addLocalStreamToPeerConnection();
-
+      
+      // Note: We don't create peer connection here - only create it when a viewer joins
+      // This ensures the camera stays active even without viewers
+      
       if (mounted) {
         setState(() {
           _isInitialized = true;
           _isLoading = false;
         });
+        print('Stream started successfully. Camera is active. Waiting for viewers...');
       }
     } catch (e) {
       setState(() {
@@ -183,17 +267,31 @@ class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
 
   Future<void> _switchCamera() async {
     try {
-      await _webrtcService.dispose();
+      // Dispose current stream but keep renderer
+      final currentStream = _webrtcService.getLocalStream();
+      await currentStream?.dispose();
+      
       _isFrontCamera = !_isFrontCamera;
-      await _webrtcService.initializeLocalRenderer(_localRenderer);
-      await _webrtcService.initializePeerConnection(isCreator: true);
+      
+      // Restart stream with new camera
       await _webrtcService.startLocalStream();
+      
+      // Update renderer - the startLocalStream already sets it, but ensure it's updated
+      final newStream = _webrtcService.getLocalStream();
+      if (newStream != null && mounted) {
+        _localRenderer.srcObject = newStream;
+      }
       
       if (mounted) {
         setState(() {});
       }
     } catch (e) {
-      // Handle error
+      print('Error switching camera: $e');
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to switch camera: $e';
+        });
+      }
     }
   }
 
