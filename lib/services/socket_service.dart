@@ -138,6 +138,12 @@ class SocketService {
     });
   }
 
+  void onLikeUpdated(Function(Map<String, dynamic>) callback) {
+    _socket?.on('like-updated', (data) {
+      callback(Map<String, dynamic>.from(data));
+    });
+  }
+
   void removeAllListeners() {
     _socket?.clearListeners();
   }

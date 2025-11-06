@@ -21,8 +21,11 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Invalid user type' });
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedUsername = username.trim();
+
     const existingUser = await User.findOne({
-      $or: [{ email }, { username }],
+      $or: [{ email: normalizedEmail }, { username: normalizedUsername }],
     });
 
     if (existingUser) {
@@ -30,8 +33,8 @@ router.post('/register', async (req, res) => {
     }
 
     const user = new User({
-      username,
-      email,
+      username: normalizedUsername,
+      email: normalizedEmail,
       password,
       userType,
     });
@@ -62,7 +65,8 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Please provide email and password' });
     }
 
-    const user = await User.findOne({ email });
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });

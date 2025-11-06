@@ -28,6 +28,8 @@ mongoose.connect(MONGODB_URI, {
 .then(() => console.log('MongoDB connected'))
 .catch(err => console.error('MongoDB connection error:', err));
 
+app.set('io', io);
+
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/streams', require('./routes/streams'));
 app.use('/api/profiles', require('./routes/profiles'));
@@ -71,25 +73,54 @@ io.on('connection', (socket) => {
       
       if (userType === 'creator') {
         socket.emit('waiting-for-viewers');
-      } else if (room.creator) {
-        io.to(room.creator).emit('viewer-joined', { viewerId: socket.id });
+        // Notify creator about existing viewers
+        if (room.viewers.size > 0) {
+          for (const viewerId of room.viewers) {
+            io.to(room.creator).emit('viewer-joined', { viewerId: viewerId });
+          }
+        }
+      } else {
+        // Viewer joined
+        if (room.creator) {
+          // Creator is already in the room, notify them
+          io.to(room.creator).emit('viewer-joined', { viewerId: socket.id });
+        }
+        // If creator not yet joined, viewer will wait (handled by frontend)
       }
     } catch (error) {
       socket.emit('error', { message: 'Failed to join stream' });
     }
   });
 
-  socket.on('chat-message', ({ streamId, message, userId, username }) => {
+  socket.on('chat-message', async ({ streamId, message, userId, username }) => {
     const roomKey = `stream-${streamId}`;
     const room = streamRooms.get(roomKey);
     
     if (room && (room.creator === socket.id || room.viewers.has(socket.id))) {
-      io.to(roomKey).emit('chat-message', {
+      const Stream = require('./models/Stream');
+      try {
+        const stream = await Stream.findById(streamId);
+        if (stream) {
+          stream.chatMessages.push({
+            userId: mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId,
+            username,
+            message,
+            timestamp: new Date(),
+          });
+          await stream.save();
+        }
+      } catch (error) {
+        console.error('Error saving chat message:', error);
+      }
+      
+      const chatData = {
         message,
         userId,
         username,
         timestamp: new Date().toISOString(),
-      });
+      };
+      
+      io.to(roomKey).emit('chat-message', chatData);
     }
   });
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
 import 'package:provider/provider.dart';
@@ -59,22 +60,45 @@ class _StreamViewerWidgetState extends State<StreamViewerWidget> {
       });
 
       _socketService.onOffer((data) async {
-        _creatorId = data['fromId'];
-        final offer = webrtc.RTCSessionDescription(
-          data['offer']['sdp'],
-          data['offer']['type'],
-        );
-        await _webrtcService.setRemoteDescription(offer);
-        final answer = await _webrtcService.createAnswer();
-        if (_creatorId != null) {
-          _socketService.sendAnswer(
-            widget.streamId,
-            {
-              'sdp': answer.sdp,
-              'type': answer.type,
-            },
-            _creatorId!,
+        try {
+          if (!mounted) return;
+          
+          _creatorId = data['fromId'];
+          final offer = webrtc.RTCSessionDescription(
+            data['offer']['sdp'],
+            data['offer']['type'],
           );
+          
+          await _webrtcService.setRemoteDescription(offer);
+          final answer = await _webrtcService.createAnswer();
+          
+          if (_creatorId != null && mounted) {
+            _socketService.sendAnswer(
+              widget.streamId,
+              {
+                'sdp': answer.sdp,
+                'type': answer.type,
+              },
+              _creatorId!,
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _error = 'Failed to process offer: $e';
+              _isLoading = false;
+            });
+          }
+        }
+      });
+      
+      // Add timeout for waiting for offer
+      Timer(const Duration(seconds: 30), () {
+        if (mounted && !_hasStream && _isLoading) {
+          setState(() {
+            _error = 'Connection timeout. Please try again.';
+            _isLoading = false;
+          });
         }
       });
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/chat_message_model.dart';
 import '../services/socket_service.dart';
+import '../services/stream_service.dart';
 import '../providers/auth_provider.dart';
 import '../config/api_config.dart';
 
@@ -19,10 +20,12 @@ class StreamChatWidget extends StatefulWidget {
 
 class _StreamChatWidgetState extends State<StreamChatWidget> {
   final SocketService _socketService = SocketService();
+  final StreamService _streamService = StreamService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessageModel> _messages = [];
   bool _isConnected = false;
+  bool _isLoadingHistory = false;
 
   @override
   void initState() {
@@ -30,11 +33,31 @@ class _StreamChatWidgetState extends State<StreamChatWidget> {
     _initializeChat();
   }
 
+  Future<void> _loadChatHistory() async {
+    setState(() => _isLoadingHistory = true);
+    final result = await _streamService.getChatHistory(widget.streamId);
+    if (mounted && result['success'] == true) {
+      final messages = (result['messages'] as List)
+          .map((msg) => ChatMessageModel.fromJson(msg))
+          .toList();
+      setState(() {
+        _messages.clear();
+        _messages.addAll(messages);
+        _isLoadingHistory = false;
+      });
+      _scrollToBottom();
+    } else {
+      setState(() => _isLoadingHistory = false);
+    }
+  }
+
   void _initializeChat() {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final user = authProvider.currentUser;
 
     if (user == null) return;
+
+    _loadChatHistory();
 
     _socketService.connect(ApiConfig.socketUrl);
     _socketService.onChatMessage((data) {
@@ -140,14 +163,18 @@ class _StreamChatWidgetState extends State<StreamChatWidget> {
             ),
           ),
           Expanded(
-            child: _messages.isEmpty
+            child: _isLoadingHistory
                 ? const Center(
-                    child: Text(
-                      'No messages yet. Be the first to chat!',
-                      style: TextStyle(color: Color(0xFF94A3B8)),
-                    ),
+                    child: CircularProgressIndicator(),
                   )
-                : ListView.builder(
+                : _messages.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No messages yet. Be the first to chat!',
+                          style: TextStyle(color: Color(0xFF94A3B8)),
+                        ),
+                      )
+                    : ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.all(12),
                     itemCount: _messages.length,

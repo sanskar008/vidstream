@@ -264,5 +264,26 @@ class StreamService {
       return {'success': false, 'message': 'Network error: ${e.toString()}'};
     }
   }
+
+  Future<Map<String, dynamic>> getChatHistory(String streamId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.streamsUrl}/chat/$streamId'),
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'messages': data['messages'] ?? [],
+        };
+      } else {
+        return {'success': false, 'message': data['message'] ?? 'Failed to fetch chat history'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: ${e.toString()}'};
+    }
+  }
 }
 

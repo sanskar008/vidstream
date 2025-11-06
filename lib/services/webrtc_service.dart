@@ -84,6 +84,21 @@ class WebRTCService {
       }
     };
 
+    // Use ontrack for newer WebRTC API
+    _peerConnection!.onTrack = (webrtc.RTCTrackEvent event) {
+      if (event.streams.isNotEmpty) {
+        final stream = event.streams[0];
+        _remoteStream = stream;
+        if (_remoteRenderer != null) {
+          _remoteRenderer!.srcObject = stream;
+        }
+        for (var callback in _onRemoteStreamCallbacks) {
+          callback(stream);
+        }
+      }
+    };
+
+    // Fallback to onAddStream for older API compatibility
     _peerConnection!.onAddStream = (webrtc.MediaStream stream) {
       _remoteStream = stream;
       if (_remoteRenderer != null) {
@@ -93,9 +108,31 @@ class WebRTCService {
         callback(stream);
       }
     };
+  }
 
-    if (isCreator && _localStream != null) {
-      _peerConnection!.addStream(_localStream!);
+  Future<void> addLocalStreamToPeerConnection() async {
+    if (_peerConnection == null || _localStream == null) {
+      return;
+    }
+
+    try {
+      // Try modern API first (addTrack)
+      final tracks = _localStream!.getVideoTracks();
+      for (var track in tracks) {
+        await _peerConnection!.addTrack(track, _localStream!);
+      }
+      final audioTracks = _localStream!.getAudioTracks();
+      for (var track in audioTracks) {
+        await _peerConnection!.addTrack(track, _localStream!);
+      }
+    } catch (e) {
+      // Fallback to older API (addStream)
+      try {
+        await _peerConnection!.addStream(_localStream!);
+      } catch (e2) {
+        print('Error adding stream to peer connection: $e2');
+        rethrow;
+      }
     }
   }
 

@@ -52,16 +52,27 @@ class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
       _socketService.joinStream(widget.streamId, user.id, 'creator');
       
       _socketService.onViewerJoined((data) {
-        _currentViewerId = data['viewerId'];
-        _createOfferForViewer();
+        if (mounted && _isInitialized) {
+          _currentViewerId = data['viewerId'];
+          _createOfferForViewer();
+        }
       });
 
-      _socketService.onAnswer((data) {
-        final answer = webrtc.RTCSessionDescription(
-          data['answer']['sdp'],
-          data['answer']['type'],
-        );
-        _webrtcService.setRemoteDescription(answer);
+      _socketService.onAnswer((data) async {
+        try {
+          final answer = webrtc.RTCSessionDescription(
+            data['answer']['sdp'],
+            data['answer']['type'],
+          );
+          await _webrtcService.setRemoteDescription(answer);
+        } catch (e) {
+          print('Error setting remote description: $e');
+          if (mounted) {
+            setState(() {
+              _error = 'Failed to process answer: $e';
+            });
+          }
+        }
       });
 
       _webrtcService.onIceCandidateCallback = (candidate) {
@@ -89,6 +100,14 @@ class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
 
       await _webrtcService.initializeLocalRenderer(_localRenderer);
       await _requestPermissionAndStartStream();
+      
+      // After stream is started, check if there are already viewers waiting
+      _socketService.onJoinedStream((data) {
+        // Stream is ready, check for waiting viewers
+        if (mounted && _isInitialized) {
+          // The backend will send viewer-joined events for existing viewers
+        }
+      });
     } catch (e) {
       setState(() {
         _error = 'Failed to initialize: $e';
@@ -99,8 +118,13 @@ class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
 
   Future<void> _createOfferForViewer() async {
     try {
+      if (!mounted || !_isInitialized) {
+        print('Cannot create offer: stream not initialized');
+        return;
+      }
+      
       final offer = await _webrtcService.createOffer();
-      if (_currentViewerId != null) {
+      if (_currentViewerId != null && mounted) {
         _socketService.sendOffer(
           widget.streamId,
           {
@@ -112,6 +136,11 @@ class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
       }
     } catch (e) {
       print('Error creating offer: $e');
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to create offer: $e';
+        });
+      }
     }
   }
 
@@ -135,6 +164,8 @@ class _StreamBroadcasterWidgetState extends State<StreamBroadcasterWidget> {
     try {
       await _webrtcService.initializePeerConnection(isCreator: true);
       await _webrtcService.startLocalStream();
+      // Add the local stream to peer connection after it's started
+      await _webrtcService.addLocalStreamToPeerConnection();
 
       if (mounted) {
         setState(() {

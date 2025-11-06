@@ -115,6 +115,16 @@ router.post('/like/:streamId', auth, async (req, res) => {
         id => id.toString() !== userId.toString()
       );
       await stream.save();
+      
+      // Broadcast like update via socket
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`stream-${stream._id}`).emit('like-updated', {
+          streamId: stream._id.toString(),
+          likesCount: stream.likes.length,
+        });
+      }
+      
       res.json({ 
         message: 'Unliked stream successfully',
         liked: false,
@@ -123,6 +133,16 @@ router.post('/like/:streamId', auth, async (req, res) => {
     } else {
       stream.likes.push(userId);
       await stream.save();
+      
+      // Broadcast like update via socket
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`stream-${stream._id}`).emit('like-updated', {
+          streamId: stream._id.toString(),
+          likesCount: stream.likes.length,
+        });
+      }
+      
       res.json({ 
         message: 'Liked stream successfully',
         liked: true,
@@ -242,6 +262,28 @@ router.post('/resume/:streamId', auth, async (req, res) => {
         isLive: stream.isLive,
         createdAt: stream.createdAt,
       },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get('/chat/:streamId', async (req, res) => {
+  try {
+    const stream = await Stream.findById(req.params.streamId)
+      .select('chatMessages');
+
+    if (!stream) {
+      return res.status(404).json({ message: 'Stream not found' });
+    }
+
+    res.json({
+      messages: stream.chatMessages.map(msg => ({
+        userId: msg.userId.toString(),
+        username: msg.username,
+        message: msg.message,
+        timestamp: msg.timestamp,
+      })),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

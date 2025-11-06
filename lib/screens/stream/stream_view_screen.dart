@@ -41,6 +41,11 @@ class _StreamViewScreenState extends State<StreamViewScreen> {
       });
 
       if (currentUser != null) {
+        streamProvider.setCurrentStream(
+          widget.stream,
+          userId: currentUser.id,
+          userType: currentUser.userType,
+        );
         streamProvider.getLikeStatus(widget.stream.id);
         // Join stream if user is not the creator
         if (!isCreator) {
